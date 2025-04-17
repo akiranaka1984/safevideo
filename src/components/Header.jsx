@@ -7,6 +7,7 @@ const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const handleLogout = async () => {
     await logout();
@@ -42,12 +43,17 @@ const Header = () => {
           )}
         </div>
         
-        <div className="flex items-center">
+        <div className="flex items-center space-x-4">
           {user && (
             <div className="text-sm text-gray-600 mr-4">
               <div className="flex items-center">
                 <User size={16} className="mr-1" />
-                {user.name || user.email}
+                <span className="font-medium">{user.name || user.email}</span>
+                <span className="mx-2 text-gray-400">•</span>
+                <span className="text-gray-500">
+                  ロール: {isAdmin ? '管理者' : '一般ユーザー'}
+                  {isAdmin && <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">管理者</span>}
+                </span>
               </div>
             </div>
           )}

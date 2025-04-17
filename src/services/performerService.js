@@ -1,6 +1,6 @@
 import api from './api';
 
-// 出演者一覧の取得
+// 出演者一覧の取得（ユーザー権限に基づいてフィルタリング）
 export const getPerformers = async (filters = {}) => {
   try {
     // クエリパラメータを構築
@@ -27,6 +27,37 @@ export const getPerformers = async (filters = {}) => {
     return response.data;
   } catch (error) {
     console.error('出演者一覧取得エラー:', error);
+    throw error;
+  }
+};
+
+// 全出演者一覧の取得（管理者専用）
+export const getAllPerformers = async (filters = {}) => {
+  try {
+    // クエリパラメータを構築
+    const queryParams = new URLSearchParams();
+    
+    if (filters.status) {
+      queryParams.append('status', filters.status);
+    }
+    
+    if (filters.sort) {
+      queryParams.append('sort', filters.sort);
+    }
+    
+    if (filters.expiring) {
+      queryParams.append('expiring', filters.expiring);
+    }
+    
+    if (filters.search) {
+      queryParams.append('search', filters.search);
+    }
+    
+    const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const response = await api.get(`/performers/all${query}`);
+    return response.data;
+  } catch (error) {
+    console.error('全出演者一覧取得エラー:', error);
     throw error;
   }
 };
@@ -129,7 +160,7 @@ export const downloadDocument = async (performerId, documentType) => {
   }
 };
 
-// 書類の検証
+// 書類の検証（管理者専用）
 export const verifyDocument = async (performerId, documentType) => {
   try {
     const response = await api.put(`/performers/${performerId}/documents/${documentType}/verify`);
@@ -138,4 +169,28 @@ export const verifyDocument = async (performerId, documentType) => {
     console.error('書類検証エラー:', error);
     throw error;
   }
+};
+
+// ユーザー権限を確認
+export const checkUserRole = async () => {
+  try {
+    const response = await api.get('/auth/me');
+    return response.data.role;
+  } catch (error) {
+    console.error('ユーザー権限確認エラー:', error);
+    throw error;
+  }
+};
+
+export default {
+  getPerformers,
+  getAllPerformers,
+  getPerformerById,
+  createPerformer,
+  updatePerformer,
+  getPerformerDocuments,
+  deletePerformer,
+  downloadDocument,
+  verifyDocument,
+  checkUserRole
 };

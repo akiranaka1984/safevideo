@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { User, Clock, Shield, Settings, Home } from 'lucide-react';
+import { User, Clock, Shield, Settings, Home, Users, FileText } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Navigation = () => {
@@ -40,40 +40,44 @@ const Navigation = () => {
           }`}
         >
           <User className="h-5 w-5 mr-3" />
-          <span>出演者一覧</span>
+          <span>{isAdmin ? '全出演者一覧' : 'マイ出演者一覧'}</span>
         </Link>
         
+        {/* 管理者専用メニュー */}
         {isAdmin && (
-          <Link
-            to="/audit-logs"
-            className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
-              isActive('/audit-logs') ? 'bg-gray-700' : ''
-            }`}
-          >
-            <Clock className="h-5 w-5 mr-3" />
-            <span>監査ログ</span>
-          </Link>
-        )}
-        
-        {isAdmin && (
-          <Link
-            to="/settings"
-            className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
-              isActive('/settings') ? 'bg-gray-700' : ''
-            }`}
-          >
-            <Settings className="h-5 w-5 mr-3" />
-            <span>システム設定</span>
-          </Link>
+          <>
+            <Link
+              to="/audit-logs"
+              className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
+                isActive('/audit-logs') ? 'bg-gray-700' : ''
+              }`}
+            >
+              <Clock className="h-5 w-5 mr-3" />
+              <span>監査ログ</span>
+            </Link>
+            
+            <Link
+              to="/users"
+              className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
+                isActive('/users') ? 'bg-gray-700' : ''
+              }`}
+            >
+              <Users className="h-5 w-5 mr-3" />
+              <span>ユーザー管理</span>
+            </Link>
+            
+            <Link
+              to="/settings"
+              className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
+                isActive('/settings') ? 'bg-gray-700' : ''
+              }`}
+            >
+              <Settings className="h-5 w-5 mr-3" />
+              <span>システム設定</span>
+            </Link>
+          </>
         )}
       </nav>
-      
-      <div className="absolute bottom-0 w-full p-6 border-t border-gray-700">
-        <div className="text-sm text-gray-400">
-          <p>ログイン中: {user?.name || user?.email}</p>
-          <p className="text-xs mt-1">ロール: {user?.role === 'admin' ? '管理者' : '一般ユーザー'}</p>
-        </div>
-      </div>
     </aside>
   );
 };

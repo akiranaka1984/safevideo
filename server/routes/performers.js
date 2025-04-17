@@ -6,16 +6,25 @@ const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
 const { Performer, AuditLog } = require('../models');
-const { auditCreate, auditRead, auditUpdate, auditDelete } = require('../middleware/auditLogger');
+const { Op } = require('sequelize');
 
 // ファイルアップロード設定
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads', 'performers');
+    // アップロードディレクトリのパスを修正
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'performers');
+    
+    console.log('アップロードディレクトリ:', uploadDir);
     
     // ディレクトリが存在しない場合は作成
     if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+      try {
+        fs.mkdirSync(uploadDir, { recursive: true });
+        console.log('アップロードディレクトリを作成しました:', uploadDir);
+      } catch (err) {
+        console.error('ディレクトリ作成エラー:', err);
+        return cb(err, null);
+      }
     }
     
     cb(null, uploadDir);
@@ -134,8 +143,11 @@ router.get('/', auth, async (req, res) => {
     
     res.json(performers);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('サーバーエラーが発生しました');
+    console.error('出演者一覧取得エラー:', err.message, err.stack);
+    res.status(500).json({ 
+      message: '出演者情報の取得に失敗しました。', 
+      error: err.message 
+    });
   }
 });
 
@@ -163,8 +175,11 @@ router.get('/:id', auth, async (req, res) => {
     
     res.json(performer);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('サーバーエラーが発生しました');
+    console.error('出演者詳細取得エラー:', err.message, err.stack);
+    res.status(500).json({ 
+      message: '出演者情報の取得に失敗しました。', 
+      error: err.message 
+    });
   }
 });
 
@@ -173,6 +188,12 @@ router.get('/:id', auth, async (req, res) => {
 // @access  Private
 router.post('/', auth, uploadFields, async (req, res) => {
   try {
+    // 処理前にリクエストの内容をログに出力（デバッグ用）
+    console.log('リクエスト受信:', {
+      body: req.body,
+      files: req.files ? Object.keys(req.files) : 'なし'
+    });
+    
     const { lastName, firstName, lastNameRoman, firstNameRoman } = req.body;
     
     // 入力検証
@@ -181,7 +202,11 @@ router.post('/', auth, uploadFields, async (req, res) => {
       if (req.files) {
         Object.values(req.files).forEach(files => {
           files.forEach(file => {
-            fs.unlinkSync(file.path);
+            try {
+              fs.unlinkSync(file.path);
+            } catch (e) {
+              console.error('ファイル削除エラー:', e);
+            }
           });
         });
       }
@@ -194,7 +219,11 @@ router.post('/', auth, uploadFields, async (req, res) => {
       if (req.files) {
         Object.values(req.files).forEach(files => {
           files.forEach(file => {
-            fs.unlinkSync(file.path);
+            try {
+              fs.unlinkSync(file.path);
+            } catch (e) {
+              console.error('ファイル削除エラー:', e);
+            }
           });
         });
       }
@@ -243,6 +272,8 @@ router.post('/', auth, uploadFields, async (req, res) => {
       }
     });
     
+    console.log('出演者情報登録成功:', performer.id);
+    
     // 監査ログ記録
     await AuditLog.create({
       userId: req.user.id,
@@ -262,16 +293,27 @@ router.post('/', auth, uploadFields, async (req, res) => {
     
     res.json(performer);
   } catch (err) {
-    console.error(err.message);
+    // より詳細なエラーログ
+    console.error('出演者登録エラー詳細:', err.message, err.stack);
+    
     // アップロードされたファイルを削除
     if (req.files) {
       Object.values(req.files).forEach(files => {
         files.forEach(file => {
-          fs.unlinkSync(file.path);
+          try {
+            fs.unlinkSync(file.path);
+          } catch (e) {
+            console.error('ファイル削除エラー:', e);
+          }
         });
       });
     }
-    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+    
+    // クライアントへのエラー応答を改善
+    res.status(500).json({
+      message: '出演者情報の登録に失敗しました。',
+      error: err.message
+    });
   }
 });
 
@@ -319,8 +361,11 @@ router.put('/:id', auth, async (req, res) => {
     
     res.json(performer);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+    console.error('出演者更新エラー:', err.message, err.stack);
+    res.status(500).json({ 
+      message: '出演者情報の更新に失敗しました。', 
+      error: err.message 
+    });
   }
 });
 
@@ -412,8 +457,11 @@ router.get('/:id/documents', auth, async (req, res) => {
     
     res.json(documents);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+    console.error('書類取得エラー:', err.message, err.stack);
+    res.status(500).json({ 
+      message: '書類情報の取得に失敗しました。', 
+      error: err.message 
+    });
   }
 });
 
@@ -457,8 +505,11 @@ router.get('/:id/documents/:type', auth, async (req, res) => {
     // ファイルを送信
     res.download(docData.path, downloadName);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+    console.error('書類ダウンロードエラー:', err.message, err.stack);
+    res.status(500).json({ 
+      message: '書類のダウンロードに失敗しました。', 
+      error: err.message 
+    });
   }
 });
 
@@ -520,8 +571,11 @@ router.put('/:id/documents/:type/verify', auth, async (req, res) => {
       allVerified
     });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+    console.error('書類検証エラー:', err.message, err.stack);
+    res.status(500).json({ 
+      message: '書類の検証に失敗しました。', 
+      error: err.message 
+    });
   }
 });
 
@@ -569,8 +623,11 @@ router.delete('/:id', auth, async (req, res) => {
     
     res.json({ message: '出演者情報が削除されました' });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+    console.error('出演者削除エラー:', err.message, err.stack);
+    res.status(500).json({ 
+      message: '出演者情報の削除に失敗しました。', 
+      error: err.message 
+    });
   }
 });
 

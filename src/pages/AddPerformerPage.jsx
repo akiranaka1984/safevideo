@@ -42,10 +42,40 @@ const AddPerformerPage = () => {
   
   const handleFileChange = (e) => {
     const { name, files } = e.target;
+    
+    // ファイルのバリデーション
+    if (files.length > 0) {
+      const file = files[0];
+      
+      // ファイルサイズチェック (5MB)
+      const maxFileSize = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxFileSize) {
+        setError(`${name}：ファイルサイズが大きすぎます（5MB以下にしてください）`);
+        return;
+      }
+      
+      // 形式チェック
+      const allowedTypes = name === 'agreementFile' 
+        ? ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'] 
+        : ['image/jpeg', 'image/jpg', 'image/png'];
+        
+      if (!allowedTypes.includes(file.type)) {
+        setError(`${name}：サポートされていないファイル形式です（${name === 'agreementFile' ? 'PDF, ' : ''}JPG, PNGのみ使用可能）`);
+        return;
+      }
+      
+      // エラー表示をクリア
+      if (error) {
+        setError('');
+      }
+    }
+    
     setFormData({
       ...formData,
       [name]: files[0]
     });
+    
+    console.log(`ファイル「${name}」が選択されました:`, files[0] ? files[0].name : 'なし');
   };
   
   const handleSubmit = async (e) => {
@@ -54,10 +84,31 @@ const AddPerformerPage = () => {
     setError('');
     
     try {
+      // ファイルが選択されているか確認
+      if (!formData.agreementFile || !formData.idFront || !formData.selfie) {
+        setError('必須ファイル（許諾書、身分証明書表面、本人写真）がアップロードされていません。');
+        setSubmitting(false);
+        return;
+      }
+      
+      console.log('出演者情報登録開始:', {
+        name: `${formData.lastName} ${formData.firstName}`,
+        files: {
+          agreementFile: formData.agreementFile?.name,
+          idFront: formData.idFront?.name,
+          idBack: formData.idBack?.name,
+          selfie: formData.selfie?.name,
+          selfieWithId: formData.selfieWithId?.name
+        }
+      });
+      
       const newPerformer = await createPerformer(formData);
+      console.log('出演者情報登録成功:', newPerformer);
+      
       navigate(`/performers/${newPerformer.id}`);
     } catch (err) {
-      setError(err.message || '出演者情報の登録に失敗しました');
+      console.error('出演者情報登録エラー:', err);
+      setError(err.message || '出演者情報の登録に失敗しました。サーバー側で問題が発生しています。');
     } finally {
       setSubmitting(false);
     }
