@@ -47,7 +47,7 @@ router.post(
 
       jwt.sign(
         payload,
-        process.env.JWT_SECRET,
+        process.env.JWT_SECRET || "your_super_secret_jwt_key_change_in_production",
         { expiresIn: '24h' },
         (err, token) => {
           if (err) throw err;
@@ -62,7 +62,7 @@ router.post(
         }
       );
     } catch (err) {
-      console.error(err.message);
+      console.error("Login error:", err);
       res.status(500).send('サーバーエラーが発生しました');
     }
   }
@@ -106,7 +106,7 @@ router.post(
 
       jwt.sign(
         payload,
-        process.env.JWT_SECRET,
+        process.env.JWT_SECRET || "your_super_secret_jwt_key_change_in_production",
         { expiresIn: '24h' },
         (err, token) => {
           if (err) throw err;
@@ -121,7 +121,7 @@ router.post(
         }
       );
     } catch (err) {
-      console.error(err.message);
+      console.error("Login error:", err);
       res.status(500).send('サーバーエラーが発生しました');
     }
   }
@@ -142,7 +142,7 @@ router.get('/me', auth, async (req, res) => {
     
     res.json(user);
   } catch (err) {
-    console.error(err.message);
+    console.error("Login error:", err);
     res.status(500).send('サーバーエラーが発生しました');
   }
 });

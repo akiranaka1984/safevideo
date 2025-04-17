@@ -2,14 +2,6 @@ const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/db');
 
 const Performer = sequelize.define('Performer', {
-  videoId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'Videos',
-      key: 'id'
-    }
-  },
   lastName: {
     type: DataTypes.STRING,
     allowNull: false
@@ -30,6 +22,15 @@ const Performer = sequelize.define('Performer', {
   documents: {
     type: DataTypes.JSON,
     defaultValue: {}
+  },
+  // ステータス
+  status: {
+    type: DataTypes.ENUM('active', 'inactive', 'pending', 'rejected'),
+    defaultValue: 'pending'
+  },
+  // メモ（内部用）
+  notes: {
+    type: DataTypes.TEXT
   }
 }, {
   timestamps: true

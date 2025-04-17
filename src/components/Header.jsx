@@ -1,43 +1,58 @@
 import React from 'react';
-import { Video, User, LogOut, ArrowLeft } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Shield, User, LogOut, ArrowLeft } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
-const Header = ({ navigateTo, currentView }) => {
+const Header = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  const isPathDashboard = location.pathname === '/' || location.pathname === '/dashboard';
+
   return (
     <header className="bg-white shadow">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <div 
+          <Link 
+            to="/"
             className="cursor-pointer flex items-center" 
-            onClick={() => navigateTo('dashboard')}
           >
             <div className="text-green-500 p-1 rounded-md bg-green-50">
               <div className="bg-green-500 text-white p-1 rounded-md">
-                <Video size={18} />
+                <Shield size={18} />
               </div>
             </div>
             <span className="ml-2 font-bold text-gray-800">SafeVideo<span className="text-gray-400 text-xs">.org</span></span>
-          </div>
+          </Link>
           
-          {currentView !== 'dashboard' && (
-            <button
-              onClick={() => navigateTo('dashboard')}
+          {!isPathDashboard && (
+            <Link
+              to="/"
               className="flex items-center text-sm text-gray-500 hover:text-gray-700 ml-4"
             >
               <ArrowLeft size={16} className="mr-1" />
-              トップ
-            </button>
+              ダッシュボード
+            </Link>
           )}
         </div>
         
         <div className="flex items-center">
-          <div className="text-sm text-gray-600 mr-4">
-            <div className="flex items-center">
-              <User size={16} className="mr-1" />
-              lc6343cb9ee8ccb
+          {user && (
+            <div className="text-sm text-gray-600 mr-4">
+              <div className="flex items-center">
+                <User size={16} className="mr-1" />
+                {user.name || user.email}
+              </div>
             </div>
-          </div>
+          )}
           <button 
-            onClick={() => navigateTo('login')}
+            onClick={handleLogout}
             className="text-gray-500 hover:text-gray-700"
           >
             <LogOut size={18} />

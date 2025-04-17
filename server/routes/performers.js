@@ -193,4 +193,52 @@ router.post('/', auth, uploadFields, async (req, res) => {
   }
 });
 
+router.get('/:performerId', auth, async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const performerId = req.params.performerId;
+    
+    // 動画の存在確認と権限チェック
+    const video = await Video.findByPk(videoId);
+    
+    if (!video) {
+      return res.status(404).json({ message: '動画が見つかりません' });
+    }
+    
+    if (video.userId !== req.user.id) {
+      return res.status(403).json({ message: 'アクセス権限がありません' });
+    }
+    
+    // 出演者の取得
+    const performer = await Performer.findOne({
+      where: { 
+        id: performerId,
+        videoId
+      }
+    });
+    
+    if (!performer) {
+      return res.status(404).json({ message: '出演者が見つかりません' });
+    }
+    
+    // ファイルパスをURL形式に変換
+    const performerData = performer.toJSON();
+    
+    if (performerData.documents) {
+      Object.keys(performerData.documents).forEach(key => {
+        if (performerData.documents[key] && performerData.documents[key].path) {
+          // 相対パスを絶対URLに変換
+          const filePath = performerData.documents[key].path;
+          performerData.documents[key].url = `/uploads/${path.basename(filePath)}`;
+        }
+      });
+    }
+    
+    res.json(performerData);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('サーバーエラーが発生しました');
+  }
+});
+
 module.exports = router;

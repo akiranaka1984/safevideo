@@ -19,19 +19,19 @@ const Footer = () => {
           
           <div className="flex space-x-6">
             <Link to="/cancellation" className="text-sm text-gray-300 hover:text-white">
-              Cancellation
+              キャンセル規約
             </Link>
             <Link to="/faqs" className="text-sm text-gray-300 hover:text-white">
-              FAQs
+              よくある質問
             </Link>
             <Link to="/contact" className="text-sm text-gray-300 hover:text-white">
-              Contact
+              お問い合わせ
             </Link>
             <Link to="/terms" className="text-sm text-gray-300 hover:text-white">
-              Terms of Use
+              利用規約
             </Link>
             <Link to="/privacy" className="text-sm text-gray-300 hover:text-white">
-              Privacy Policy
+              プライバシーポリシー
             </Link>
           </div>
         </div>

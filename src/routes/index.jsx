@@ -5,14 +5,16 @@ import MainLayout from '../layouts/MainLayout';
 
 import LoginPage from '../pages/LoginPage';
 import DashboardPage from '../pages/DashboardPage';
-import VideoDetailPage from '../pages/VideoDetailPage';
-import AddVideoPage from '../pages/AddVideoPage';
+import PerformersPage from '../pages/PerformersPage';
+import PerformerDetailPage from '../pages/PerformerDetailPage';
 import AddPerformerPage from '../pages/AddPerformerPage';
+import AuditLogsPage from '../pages/AuditLogsPage';
 import CancellationPage from '../pages/CancellationPage';
 import FAQsPage from '../pages/FAQsPage';
 import ContactPage from '../pages/ContactPage';
 import TermsPage from '../pages/TermsPage';
 import PrivacyPage from '../pages/PrivacyPage';
+import CustomVideoDetailPage from '../pages/CustomVideoDetailPage';
 
 // 認証済みユーザーのみがアクセスできるルート
 const ProtectedRoute = ({ children }) => {
@@ -39,19 +41,30 @@ const AppRoutes = () => {
                 <DashboardPage />
               </ProtectedRoute>
             } />
-            <Route path="/videos/:id" element={
+            <Route path="/performers" element={
               <ProtectedRoute>
-                <VideoDetailPage />
+                <PerformersPage />
               </ProtectedRoute>
             } />
-            <Route path="/videos/add" element={
+            <Route path="/performers/:id" element={
               <ProtectedRoute>
-                <AddVideoPage />
+                <PerformerDetailPage />
               </ProtectedRoute>
             } />
-            <Route path="/videos/:id/performers/add" element={
+            <Route path="/performers/add" element={
               <ProtectedRoute>
                 <AddPerformerPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/audit-logs" element={
+              <ProtectedRoute>
+                <AuditLogsPage />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/videos/:id" element={
+              <ProtectedRoute>
+                <CustomVideoDetailPage />
               </ProtectedRoute>
             } />
             

@@ -37,6 +37,7 @@ app.options('*', cors());
 
 // ルート設定
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/performers', require('./routes/performers'));
 
 // 簡単なテストエンドポイント
 app.get('/', (req, res) => {
@@ -66,3 +67,9 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`CORS is enabled for all origins`);
 });
+
+// ルート設定
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/performers', require('./routes/performers'));
+app.use('/api/audit-logs', require('./routes/auditLogs'));
+app.use('/api/dashboard', require('./routes/dashboard'));
