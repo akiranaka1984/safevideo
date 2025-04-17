@@ -69,7 +69,39 @@ router.get('/', auth, async (req, res) => {
       limit: 1000 // 最大1000件まで
     });
     
-    res.json(logs);
+    // 日本語化と整形
+    const formattedLogs = logs.map(log => {
+      const logData = log.toJSON();
+      
+      // アクションの日本語化
+      let actionLabel = '';
+      switch(log.action) {
+        case 'create': actionLabel = '作成'; break;
+        case 'read': actionLabel = '閲覧'; break;
+        case 'update': actionLabel = '更新'; break;
+        case 'delete': actionLabel = '削除'; break;
+        case 'verify': actionLabel = '検証'; break;
+        case 'download': actionLabel = 'ダウンロード'; break;
+        default: actionLabel = log.action;
+      }
+      
+      // リソースタイプの日本語化
+      let resourceTypeLabel = '';
+      switch(log.resourceType) {
+        case 'performer': resourceTypeLabel = '出演者'; break;
+        case 'document': resourceTypeLabel = '書類'; break;
+        default: resourceTypeLabel = log.resourceType;
+      }
+      
+      return {
+        ...logData,
+        actionLabel,
+        resourceTypeLabel,
+        formattedDate: new Date(log.createdAt).toLocaleString('ja-JP')
+      };
+    });
+    
+    res.json(formattedLogs);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('サーバーエラーが発生しました');
@@ -93,7 +125,39 @@ router.get('/:resourceType/:resourceId', auth, async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
     
-    res.json(logs);
+    // 日本語化と整形
+    const formattedLogs = logs.map(log => {
+      const logData = log.toJSON();
+      
+      // アクションの日本語化
+      let actionLabel = '';
+      switch(log.action) {
+        case 'create': actionLabel = '作成'; break;
+        case 'read': actionLabel = '閲覧'; break;
+        case 'update': actionLabel = '更新'; break;
+        case 'delete': actionLabel = '削除'; break;
+        case 'verify': actionLabel = '検証'; break;
+        case 'download': actionLabel = 'ダウンロード'; break;
+        default: actionLabel = log.action;
+      }
+      
+      // リソースタイプの日本語化
+      let resourceTypeLabel = '';
+      switch(log.resourceType) {
+        case 'performer': resourceTypeLabel = '出演者'; break;
+        case 'document': resourceTypeLabel = '書類'; break;
+        default: resourceTypeLabel = log.resourceType;
+      }
+      
+      return {
+        ...logData,
+        actionLabel,
+        resourceTypeLabel,
+        formattedDate: new Date(log.createdAt).toLocaleString('ja-JP')
+      };
+    });
+    
+    res.json(formattedLogs);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('サーバーエラーが発生しました');
@@ -106,7 +170,7 @@ router.get('/:resourceType/:resourceId', auth, async (req, res) => {
 router.get('/export', auth, async (req, res) => {
   // 管理者権限チェック
   if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: '権限がありません' });
+    return res.status(403).json({ message: '権限がありません。この操作にはシステム管理者権限が必要です。' });
   }
   
   try {
@@ -153,23 +217,53 @@ router.get('/export', auth, async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
     
+    // アクションとリソースタイプのラベルマッピング
+    const actionLabels = {
+      'create': '作成',
+      'read': '閲覧',
+      'update': '更新',
+      'delete': '削除',
+      'verify': '検証',
+      'download': 'ダウンロード'
+    };
+    
+    const resourceTypeLabels = {
+      'performer': '出演者',
+      'document': '書類'
+    };
+    
     // ExcelのワークブックとワークシートをRUB
     const wb = xlsx.utils.book_new();
     
     // ログデータをExcelに適した形式に変換
     const excelData = logs.map(log => ({
-      'タイムスタンプ': new Date(log.createdAt).toLocaleString(),
+      'タイムスタンプ': new Date(log.createdAt).toLocaleString('ja-JP'),
       'ユーザーID': log.userId,
       'ユーザー名': log.User ? log.User.name : '',
-      'アクション': log.action,
-      'リソースタイプ': log.resourceType,
+      'メールアドレス': log.User ? log.User.email : '',
+      'アクション': actionLabels[log.action] || log.action,
+      'リソースタイプ': resourceTypeLabels[log.resourceType] || log.resourceType,
       'リソースID': log.resourceId,
       'IPアドレス': log.ipAddress,
-      '詳細': JSON.stringify(log.details)
+      '詳細': JSON.stringify(log.details, null, 2)
     }));
     
     // ワークシートを作成
     const ws = xlsx.utils.json_to_sheet(excelData);
+    
+    // 列幅の設定
+    const wscols = [
+      { wch: 20 }, // タイムスタンプ
+      { wch: 10 }, // ユーザーID
+      { wch: 15 }, // ユーザー名
+      { wch: 25 }, // メールアドレス
+      { wch: 10 }, // アクション
+      { wch: 12 }, // リソースタイプ
+      { wch: 10 }, // リソースID
+      { wch: 15 }, // IPアドレス
+      { wch: 50 }  // 詳細
+    ];
+    ws['!cols'] = wscols;
     
     // ワークブックに追加
     xlsx.utils.book_append_sheet(wb, ws, '監査ログ');

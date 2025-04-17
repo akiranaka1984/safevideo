@@ -1,16 +1,17 @@
 const express = require('express');
-const router = express.Router({ mergeParams: true });
+const router = express.Router();
 const { check, validationResult } = require('express-validator');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
-const { Video, Performer } = require('../models');
+const { Performer, AuditLog } = require('../models');
+const { auditCreate, auditRead, auditUpdate, auditDelete } = require('../middleware/auditLogger');
 
 // ファイルアップロード設定
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads', req.params.videoId);
+    const uploadDir = path.join(__dirname, '../uploads', 'performers');
     
     // ディレクトリが存在しない場合は作成
     if (!fs.existsSync(uploadDir)) {
@@ -55,24 +56,80 @@ const uploadFields = upload.fields([
   { name: 'selfieWithId', maxCount: 1 }
 ]);
 
-// @route   GET api/videos/:videoId/performers
-// @desc    Get all performers for a video
+// @route   GET api/performers
+// @desc    Get all performers
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
-    // 動画の存在確認と権限チェック
-    const video = await Video.findByPk(req.params.videoId);
+    // クエリパラメータの取得
+    const { status, sort, expiring, search } = req.query;
     
-    if (!video) {
-      return res.status(404).json({ message: '動画が見つかりません' });
+    // 検索条件の構築
+    const whereClause = {};
+    
+    // ステータスによるフィルタリング
+    if (status) {
+      whereClause.status = status;
     }
     
-    if (video.userId !== req.user.id) {
-      return res.status(403).json({ message: 'アクセス権限がありません' });
+    // 期限切れ間近の書類フィルタリング
+    if (expiring === 'true') {
+      // 例として3ヶ月以上前に作成され、検証済みの書類を「期限切れ間近」とする
+      whereClause.createdAt = {
+        [Op.lte]: new Date(new Date().setMonth(new Date().getMonth() - 3))
+      };
+      whereClause[Op.and] = [
+        { 
+          documents: {
+            [Op.ne]: null
+          } 
+        },
+        { 
+          [Op.or]: [
+            { 'documents.agreementFile.verified': true },
+            { 'documents.idFront.verified': true },
+            { 'documents.selfie.verified': true }
+          ]
+        }
+      ];
+    }
+    
+    // 検索キーワードによるフィルタリング
+    if (search) {
+      whereClause[Op.or] = [
+        { lastName: { [Op.like]: `%${search}%` } },
+        { firstName: { [Op.like]: `%${search}%` } },
+        { lastNameRoman: { [Op.like]: `%${search}%` } },
+        { firstNameRoman: { [Op.like]: `%${search}%` } }
+      ];
+    }
+    
+    // ソート順の設定
+    let order = [['createdAt', 'DESC']]; // デフォルトは作成日の降順
+    
+    if (sort === 'updatedAt') {
+      order = [['updatedAt', 'DESC']]; // 更新日の降順
+    } else if (sort === 'name') {
+      order = [['lastName', 'ASC'], ['firstName', 'ASC']]; // 名前の昇順
     }
     
     const performers = await Performer.findAll({
-      where: { videoId: req.params.videoId }
+      where: whereClause,
+      order,
+      attributes: { 
+        exclude: ['documents'] // documents JSONは除外（一覧表示では不要）
+      }
+    });
+    
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'read',
+      resourceType: 'performer',
+      resourceId: 0, // 全体リスト
+      details: { query: req.query },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
     });
     
     res.json(performers);
@@ -82,38 +139,40 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// @route   POST api/videos/:videoId/performers
-// @desc    Add a performer to a video
+// @route   GET api/performers/:id
+// @desc    Get performer by ID
+// @access  Private
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const performer = await Performer.findByPk(req.params.id);
+    
+    if (!performer) {
+      return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
+    }
+    
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'read',
+      resourceType: 'performer',
+      resourceId: performer.id,
+      details: {},
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
+    });
+    
+    res.json(performer);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('サーバーエラーが発生しました');
+  }
+});
+
+// @route   POST api/performers
+// @desc    Create a performer
 // @access  Private
 router.post('/', auth, uploadFields, async (req, res) => {
   try {
-    // 動画の存在確認と権限チェック
-    const video = await Video.findByPk(req.params.videoId);
-    
-    if (!video) {
-      // アップロードされたファイルを削除
-      if (req.files) {
-        Object.values(req.files).forEach(files => {
-          files.forEach(file => {
-            fs.unlinkSync(file.path);
-          });
-        });
-      }
-      return res.status(404).json({ message: '動画が見つかりません' });
-    }
-    
-    if (video.userId !== req.user.id) {
-      // アップロードされたファイルを削除
-      if (req.files) {
-        Object.values(req.files).forEach(files => {
-          files.forEach(file => {
-            fs.unlinkSync(file.path);
-          });
-        });
-      }
-      return res.status(403).json({ message: 'アクセス権限がありません' });
-    }
-    
     const { lastName, firstName, lastNameRoman, firstNameRoman } = req.body;
     
     // 入力検証
@@ -126,7 +185,7 @@ router.post('/', auth, uploadFields, async (req, res) => {
           });
         });
       }
-      return res.status(400).json({ message: '氏名は必須です' });
+      return res.status(400).json({ message: '氏名は必須です。すべての氏名フィールドを入力してください。' });
     }
     
     // 必須ファイルの確認
@@ -139,43 +198,66 @@ router.post('/', auth, uploadFields, async (req, res) => {
           });
         });
       }
-      return res.status(400).json({ message: '必須ファイル（許諾書、身分証明書表面、本人写真）がアップロードされていません' });
+      return res.status(400).json({ message: '必須ファイル（許諾書、身分証明書表面、本人写真）がアップロードされていません。すべての必須書類をアップロードしてください。' });
     }
     
     // 出演者データの作成
     const performer = await Performer.create({
-      videoId: req.params.videoId,
+      userId: req.user.id, // 作成者のユーザーID
       lastName,
       firstName,
       lastNameRoman,
       firstNameRoman,
+      status: 'pending', // 初期ステータスは「保留中」
       documents: {
         agreementFile: req.files.agreementFile ? {
           path: req.files.agreementFile[0].path,
           originalName: req.files.agreementFile[0].originalname,
-          mimeType: req.files.agreementFile[0].mimetype
+          mimeType: req.files.agreementFile[0].mimetype,
+          verified: false
         } : null,
         idFront: req.files.idFront ? {
           path: req.files.idFront[0].path,
           originalName: req.files.idFront[0].originalname,
-          mimeType: req.files.idFront[0].mimetype
+          mimeType: req.files.idFront[0].mimetype,
+          verified: false
         } : null,
         idBack: req.files.idBack ? {
           path: req.files.idBack[0].path,
           originalName: req.files.idBack[0].originalname,
-          mimeType: req.files.idBack[0].mimetype
+          mimeType: req.files.idBack[0].mimetype,
+          verified: false
         } : null,
         selfie: req.files.selfie ? {
           path: req.files.selfie[0].path,
           originalName: req.files.selfie[0].originalname,
-          mimeType: req.files.selfie[0].mimetype
+          mimeType: req.files.selfie[0].mimetype,
+          verified: false
         } : null,
         selfieWithId: req.files.selfieWithId ? {
           path: req.files.selfieWithId[0].path,
           originalName: req.files.selfieWithId[0].originalname,
-          mimeType: req.files.selfieWithId[0].mimetype
+          mimeType: req.files.selfieWithId[0].mimetype,
+          verified: false
         } : null
       }
+    });
+    
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'create',
+      resourceType: 'performer',
+      resourceId: performer.id,
+      details: {
+        lastName,
+        firstName,
+        lastNameRoman,
+        firstNameRoman,
+        documents: Object.keys(req.files).map(key => key)
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
     });
     
     res.json(performer);
@@ -189,55 +271,306 @@ router.post('/', auth, uploadFields, async (req, res) => {
         });
       });
     }
-    res.status(500).send('サーバーエラーが発生しました');
+    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
   }
 });
 
-router.get('/:performerId', auth, async (req, res) => {
+// @route   PUT api/performers/:id
+// @desc    Update performer information
+// @access  Private
+router.put('/:id', auth, async (req, res) => {
   try {
-    const { videoId } = req.params;
-    const performerId = req.params.performerId;
+    const { lastName, firstName, lastNameRoman, firstNameRoman, status, notes } = req.body;
     
-    // 動画の存在確認と権限チェック
-    const video = await Video.findByPk(videoId);
-    
-    if (!video) {
-      return res.status(404).json({ message: '動画が見つかりません' });
-    }
-    
-    if (video.userId !== req.user.id) {
-      return res.status(403).json({ message: 'アクセス権限がありません' });
-    }
-    
-    // 出演者の取得
-    const performer = await Performer.findOne({
-      where: { 
-        id: performerId,
-        videoId
-      }
-    });
+    // 出演者情報の取得
+    let performer = await Performer.findByPk(req.params.id);
     
     if (!performer) {
-      return res.status(404).json({ message: '出演者が見つかりません' });
+      return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
     }
     
-    // ファイルパスをURL形式に変換
-    const performerData = performer.toJSON();
+    // 更新フィールドの構築
+    const updateFields = {};
+    if (lastName) updateFields.lastName = lastName;
+    if (firstName) updateFields.firstName = firstName;
+    if (lastNameRoman) updateFields.lastNameRoman = lastNameRoman;
+    if (firstNameRoman) updateFields.firstNameRoman = firstNameRoman;
+    if (status) updateFields.status = status;
+    if (notes !== undefined) updateFields.notes = notes;
     
-    if (performerData.documents) {
-      Object.keys(performerData.documents).forEach(key => {
-        if (performerData.documents[key] && performerData.documents[key].path) {
-          // 相対パスを絶対URLに変換
-          const filePath = performerData.documents[key].path;
-          performerData.documents[key].url = `/uploads/${path.basename(filePath)}`;
-        }
+    // 出演者情報を更新
+    await Performer.update(updateFields, {
+      where: { id: req.params.id }
+    });
+    
+    // 更新後の出演者情報を取得
+    performer = await Performer.findByPk(req.params.id);
+    
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'update',
+      resourceType: 'performer',
+      resourceId: performer.id,
+      details: updateFields,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
+    });
+    
+    res.json(performer);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+  }
+});
+
+// @route   GET api/performers/:id/documents
+// @desc    Get documents for a performer
+// @access  Private
+router.get('/:id/documents', auth, async (req, res) => {
+  try {
+    const performer = await Performer.findByPk(req.params.id);
+    
+    if (!performer) {
+      return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
+    }
+    
+    // documents JSONから書類情報の配列を作成
+    const documents = [];
+    const docData = performer.documents || {};
+    
+    if (docData.agreementFile) {
+      documents.push({
+        id: 'agreementFile',
+        type: 'agreementFile',
+        name: '出演同意書',
+        originalName: docData.agreementFile.originalName,
+        mimeType: docData.agreementFile.mimeType,
+        verified: docData.agreementFile.verified,
+        updatedAt: performer.updatedAt
       });
     }
     
-    res.json(performerData);
+    if (docData.idFront) {
+      documents.push({
+        id: 'idFront',
+        type: 'idFront',
+        name: '身分証明書（表面）',
+        originalName: docData.idFront.originalName,
+        mimeType: docData.idFront.mimeType,
+        verified: docData.idFront.verified,
+        updatedAt: performer.updatedAt
+      });
+    }
+    
+    if (docData.idBack) {
+      documents.push({
+        id: 'idBack',
+        type: 'idBack',
+        name: '身分証明書（裏面）',
+        originalName: docData.idBack.originalName,
+        mimeType: docData.idBack.mimeType,
+        verified: docData.idBack.verified,
+        updatedAt: performer.updatedAt
+      });
+    }
+    
+    if (docData.selfie) {
+      documents.push({
+        id: 'selfie',
+        type: 'selfie',
+        name: '本人写真',
+        originalName: docData.selfie.originalName,
+        mimeType: docData.selfie.mimeType,
+        verified: docData.selfie.verified,
+        updatedAt: performer.updatedAt
+      });
+    }
+    
+    if (docData.selfieWithId) {
+      documents.push({
+        id: 'selfieWithId',
+        type: 'selfieWithId',
+        name: '本人と身分証明書の写真',
+        originalName: docData.selfieWithId.originalName,
+        mimeType: docData.selfieWithId.mimeType,
+        verified: docData.selfieWithId.verified,
+        updatedAt: performer.updatedAt
+      });
+    }
+    
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'read',
+      resourceType: 'document',
+      resourceId: performer.id,
+      details: { documentCount: documents.length },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
+    });
+    
+    res.json(documents);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('サーバーエラーが発生しました');
+    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+  }
+});
+
+// @route   GET api/performers/:id/documents/:type
+// @desc    Download a document
+// @access  Private
+router.get('/:id/documents/:type', auth, async (req, res) => {
+  try {
+    const performer = await Performer.findByPk(req.params.id);
+    
+    if (!performer) {
+      return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
+    }
+    
+    const docType = req.params.type;
+    const docData = performer.documents ? performer.documents[docType] : null;
+    
+    if (!docData) {
+      return res.status(404).json({ message: '指定された書類が見つかりません。正しい書類タイプを指定してください。' });
+    }
+    
+    // ファイルが存在するか確認
+    if (!fs.existsSync(docData.path)) {
+      return res.status(404).json({ message: 'ファイルが見つかりません。システム管理者にお問い合わせください。' });
+    }
+    
+    // ダウンロード用の名前を作成
+    const downloadName = `${docType}_${performer.lastName}_${performer.firstName}${path.extname(docData.originalName)}`;
+    
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'download',
+      resourceType: 'document',
+      resourceId: performer.id,
+      details: { documentType: docType },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
+    });
+    
+    // ファイルを送信
+    res.download(docData.path, downloadName);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+  }
+});
+
+// @route   PUT api/performers/:id/documents/:type/verify
+// @desc    Verify a document
+// @access  Private
+router.put('/:id/documents/:type/verify', auth, async (req, res) => {
+  try {
+    const performer = await Performer.findByPk(req.params.id);
+    
+    if (!performer) {
+      return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
+    }
+    
+    const docType = req.params.type;
+    const documents = { ...(performer.documents || {}) };
+    
+    if (!documents[docType]) {
+      return res.status(404).json({ message: '指定された書類が見つかりません。正しい書類タイプを指定してください。' });
+    }
+    
+    // 書類の検証ステータスを更新
+    documents[docType].verified = true;
+    documents[docType].verifiedAt = new Date();
+    documents[docType].verifiedBy = req.user.id;
+    
+    // 出演者データを更新
+    await Performer.update({ documents }, {
+      where: { id: req.params.id }
+    });
+    
+    // すべての必須書類が検証されたかチェック
+    const allVerified = 
+      documents.agreementFile?.verified && 
+      documents.idFront?.verified && 
+      documents.selfie?.verified;
+    
+    // すべて検証済みの場合はステータスを更新
+    if (allVerified) {
+      await Performer.update({ status: 'active' }, {
+        where: { id: req.params.id }
+      });
+    }
+    
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'verify',
+      resourceType: 'document',
+      resourceId: performer.id,
+      details: { documentType: docType },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
+    });
+    
+    res.json({ 
+      message: '書類が検証されました', 
+      verified: true,
+      allVerified
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
+  }
+});
+
+// @route   DELETE api/performers/:id
+// @desc    Delete a performer
+// @access  Private
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const performer = await Performer.findByPk(req.params.id);
+    
+    if (!performer) {
+      return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
+    }
+    
+    // 関連するファイルを削除
+    const docData = performer.documents || {};
+    Object.values(docData).forEach(doc => {
+      if (doc && doc.path) {
+        try {
+          fs.unlinkSync(doc.path);
+        } catch (e) {
+          console.error(`ファイル削除エラー: ${e.message}`);
+        }
+      }
+    });
+    
+    // 監査ログ記録（出演者削除前に記録）
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'delete',
+      resourceType: 'performer',
+      resourceId: performer.id,
+      details: {
+        lastName: performer.lastName,
+        firstName: performer.firstName
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
+    });
+    
+    // 出演者データを削除
+    await Performer.destroy({
+      where: { id: req.params.id }
+    });
+    
+    res.json({ message: '出演者情報が削除されました' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('サーバーエラーが発生しました。しばらく経ってから再度お試しください。');
   }
 });
 

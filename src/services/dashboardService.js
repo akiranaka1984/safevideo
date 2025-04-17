@@ -9,6 +9,7 @@ export const getDashboardStats = async () => {
     const response = await api.get('/dashboard/stats');
     return response.data;
   } catch (error) {
+    console.error('ダッシュボード統計取得エラー:', error);
     throw error;
   }
 };
@@ -23,6 +24,7 @@ export const getRecentActivity = async (limit = 10) => {
     const response = await api.get(`/dashboard/activity?limit=${limit}`);
     return response.data;
   } catch (error) {
+    console.error('アクティビティ取得エラー:', error);
     throw error;
   }
 };
@@ -37,6 +39,7 @@ export const getDashboardChartData = async (type = 'monthly') => {
     const response = await api.get(`/dashboard/chart?type=${type}`);
     return response.data;
   } catch (error) {
+    console.error('グラフデータ取得エラー:', error);
     throw error;
   }
 };

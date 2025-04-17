@@ -1,4 +1,4 @@
-const { createAuditLog } = require('../services/auditService');
+const { AuditLog } = require('../models');
 
 /**
  * 監査ログを記録するミドルウェア
@@ -23,7 +23,7 @@ const auditLogger = (action, resourceType, getResourceId, getDetails = () => ({}
           const resourceId = getResourceId(req, res);
           
           if (resourceId) {
-            await createAuditLog({
+            await AuditLog.create({
               userId: req.user.id,
               action,
               resourceType,

@@ -37,6 +37,7 @@ export const getAuditLogs = async (filters = {}) => {
     const response = await api.get(url);
     return response.data;
   } catch (error) {
+    console.error('監査ログ取得エラー:', error);
     throw error;
   }
 };
@@ -52,6 +53,7 @@ export const getResourceAuditLogs = async (resourceType, resourceId) => {
     const response = await api.get(`/audit-logs/${resourceType}/${resourceId}`);
     return response.data;
   } catch (error) {
+    console.error('リソース監査ログ取得エラー:', error);
     throw error;
   }
 };
@@ -101,6 +103,7 @@ export const exportAuditReport = async (filters = {}) => {
     
     return blob;
   } catch (error) {
+    console.error('監査ログエクスポートエラー:', error);
     throw error;
   }
 };
