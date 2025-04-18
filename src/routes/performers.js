@@ -600,13 +600,15 @@ router.get('/:id/documents', auth, async (req, res) => {
 });
 
 // @route   GET api/performers/:id/documents/:type
-// @desc    Download a document
+// @desc    View or download a document
 // @access  Private (owner or admin)
 router.get('/:id/documents/:type', auth, async (req, res) => {
   try {
+    console.log('Document request:', req.params.id, req.params.type);
     const performer = await Performer.findByPk(req.params.id);
     
     if (!performer) {
+      console.log('Performer not found');
       return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
     }
     
@@ -617,37 +619,69 @@ router.get('/:id/documents/:type', auth, async (req, res) => {
     
     const docType = req.params.type;
     const docData = performer.documents ? performer.documents[docType] : null;
+    console.log('Document data:', JSON.stringify(docData));
     
     if (!docData) {
+      console.log('Document not found');
       return res.status(404).json({ message: '指定された書類が見つかりません。正しい書類タイプを指定してください。' });
     }
     
     // ファイルが存在するか確認
+    console.log('Checking file path:', docData.path);
     if (!fs.existsSync(docData.path)) {
+      console.log('File not found at path:', docData.path);
       return res.status(404).json({ message: 'ファイルが見つかりません。システム管理者にお問い合わせください。' });
     }
     
     // ダウンロード用の名前を作成
     const downloadName = `${docType}_${performer.lastName}_${performer.firstName}${path.extname(docData.originalName)}`;
+    console.log('Download name:', downloadName);
     
-    // 監査ログ記録
-    await logAudit(
+    // MIMEタイプの確認と修正
+    let mimeType = docData.mimeType || 'application/octet-stream';
+    // PDFの場合は明示的にMIMEタイプを設定
+    if (path.extname(docData.path).toLowerCase() === '.pdf') {
+      mimeType = 'application/pdf';
+    } else if (path.extname(docData.path).toLowerCase() === '.png') {
+      mimeType = 'image/png';
+    } else if (path.extname(docData.path).toLowerCase() === '.jpg' || path.extname(docData.path).toLowerCase() === '.jpeg') {
+      mimeType = 'image/jpeg';
+    }
+    console.log('MIME type:', mimeType);
+    
+    // 表示モードを設定（クエリパラメータでダウンロードを指定可能）
+    const isDownload = req.query.download === 'true';
+    const disposition = isDownload ? 'attachment' : 'inline';
+    
+    // 監査ログ記録（非同期で行い、レスポンスを遅らせない）
+    logAudit(
       req.user.id,
-      'download',
+      isDownload ? 'download' : 'view',
       'document',
       performer.id,
       { documentType: docType },
       req
-    );
-    
-    // ファイルを送信
-    res.download(docData.path, downloadName);
-  } catch (err) {
-    console.error('書類ダウンロードエラー:', err.message, err.stack);
-    res.status(500).json({ 
-      message: '書類のダウンロードに失敗しました。', 
-      error: err.message 
+    ).catch(err => {
+      console.error('Audit log error:', err);
     });
+    
+    // ファイルを直接提供
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(downloadName)}"`);
+    
+    // ファイルを直接読み込んで送信
+    fs.readFile(docData.path, (err, data) => {
+      if (err) {
+        console.error('File read error:', err);
+        return res.status(500).json({ message: 'ファイル読み込みエラー' });
+      }
+      res.send(data);
+    });
+  } catch (err) {
+    console.error('Document view/download error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'サーバーエラーが発生しました' });
+    }
   }
 });
 

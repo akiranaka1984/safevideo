@@ -126,12 +126,6 @@ const PerformersPage = () => {
                     </Link>
                     <button
                       type="button"
-                      className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                    >
-                      <Download className="h-5 w-5" />
-                    </button>
-                    <button
-                      type="button"
                       className="inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-red-400 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                       onClick={() => {
                         if (window.confirm(`${performer.lastName} ${performer.firstName}さんの情報を削除しますか？`)) {

@@ -29,7 +29,7 @@ const Header = () => {
                 <Shield size={18} />
               </div>
             </div>
-            <span className="ml-2 font-bold text-gray-800">SafeVideo<span className="text-gray-400 text-xs">.org</span></span>
+            <span className="ml-2 font-bold text-gray-800">SharegramVideo<span className="text-gray-400 text-xs">.org</span></span>
           </Link>
           
           {!isPathDashboard && (

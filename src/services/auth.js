@@ -33,3 +33,24 @@ export const checkAuth = async () => {
     throw error;
   }
 };
+
+// ユーザーのロールを取得する関数
+export const getUserRole = () => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return 'user';
+    
+    // JWT処理ロジック
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    
+    const { role } = JSON.parse(jsonPayload);
+    return role || 'user';
+  } catch (error) {
+    console.error('トークン解析エラー:', error);
+    return 'user';
+  }
+};

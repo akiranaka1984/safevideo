@@ -25,6 +25,7 @@ services:
     volumes:
       - ./server:/app
       - /app/node_modules
+      - ./uploads:/app/uploads  # この行を追加: アップロードフォルダの永続化
     environment:
       - DB_HOST=mysql
       - DB_PORT=3306
@@ -59,4 +60,6 @@ networks:
 
 volumes:
   mysql-data:
+    driver: local
+  uploads-data:  # この行を追加: アップロードデータ用のボリューム定義
     driver: local

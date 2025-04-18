@@ -63,6 +63,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/performers', require('./routes/performers'));
 app.use('/api/audit-logs', require('./routes/auditLogs'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/test', require('./routes/test-file'));
 
 // 簡単なテストエンドポイント
 app.get('/', (req, res) => {

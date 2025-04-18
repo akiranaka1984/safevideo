@@ -7,12 +7,6 @@ const Footer = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center">
           <div className="flex space-x-4 text-sm">
-            <Link to="/cancellation" className="text-gray-300 hover:text-white">
-              キャンセル規約
-            </Link>
-            <Link to="/faqs" className="text-gray-300 hover:text-white">
-              よくある質問
-            </Link>
             <Link to="/contact" className="text-gray-300 hover:text-white">
               お問い合わせ
             </Link>
@@ -25,7 +19,7 @@ const Footer = () => {
           </div>
           
           <div className="text-gray-400 text-sm">
-            © 2025 SafeVideo.org All rights reserved.
+            © 2025 SharegramVideo All rights reserved.
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';  // useNavigateをインポート
 import { Clock, FileText, Filter, Download, RefreshCw } from 'lucide-react';
 import { getAuditLogs, exportAuditReport } from '../services/auditService';
+import { debounce } from 'lodash'; // この行を追加
 
 const AuditLogsPage = () => {
   const navigate = useNavigate();
@@ -15,23 +16,42 @@ const AuditLogsPage = () => {
     resourceType: ''
   });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [lastFetchTime, setLastFetchTime] = useState(0); // 追加：最後のフェッチ時間を追跡
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    try {
-      const data = await getAuditLogs(filters);
-      setLogs(data);
-    } catch (err) {
-      setError('監査ログの取得に失敗しました');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // useCallbackでfetchLogs関数をメモ化
+  const fetchLogs = useCallback(
+    debounce(async () => {
+      // 30秒以内の再取得を防止（キャッシュ機能）
+      const now = Date.now();
+      if (now - lastFetchTime < 30000 && logs.length > 0) {
+        console.log('キャッシュされたデータを使用します');
+        return;
+      }
 
+      setLoading(true);
+      try {
+        const data = await getAuditLogs(filters);
+        setLogs(data);
+        setLastFetchTime(now); // 最後のフェッチ時間を更新
+      } catch (err) {
+        setError('監査ログの取得に失敗しました');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }, 300), // 300ミリ秒のデバウンス
+    [filters, lastFetchTime, logs.length] // filtersが変わった時だけ関数を再作成
+  );
+
+  // useEffectの依存配列を空にして、初回のみ実行されるようにする
   useEffect(() => {
     fetchLogs();
-  }, [fetchLogs]);
+    
+    // クリーンアップ関数
+    return () => {
+      fetchLogs.cancel(); // デバウンス関数のキャンセル
+    };
+  }, []); // 空の依存配列
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -43,7 +63,7 @@ const AuditLogsPage = () => {
 
   const handleFilterSubmit = (e) => {
     e.preventDefault();
-    fetchLogs();
+    fetchLogs(); // フィルター適用時にfetchLogsを呼び出す
     setIsFilterOpen(false);
   };
 

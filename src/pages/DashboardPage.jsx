@@ -143,31 +143,6 @@ const DashboardPage = () => {
             </div>
           </div>
         </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-red-100 rounded-md p-3">
-                <FileCheck className="h-6 w-6 text-red-600" />
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">期限切れ間近の書類</dt>
-                  <dd className="flex items-baseline">
-                    <div className="text-2xl font-semibold text-gray-900">{stats.expiringDocuments}</div>
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-          <div className="bg-gray-50 px-4 py-4 sm:px-6">
-            <div className="text-sm">
-              <Link to="/performers?expiring=true" className="font-medium text-green-600 hover:text-green-500">
-                確認する
-              </Link>
-            </div>
-          </div>
-        </div>
       </div>
       
       {/* 最近のアクティビティ */}

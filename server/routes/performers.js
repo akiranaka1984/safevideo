@@ -317,58 +317,6 @@ router.post('/', auth, uploadFields, async (req, res) => {
   }
 });
 
-// @route   PUT api/performers/:id
-// @desc    Update performer information
-// @access  Private
-router.put('/:id', auth, async (req, res) => {
-  try {
-    const { lastName, firstName, lastNameRoman, firstNameRoman, status, notes } = req.body;
-    
-    // 出演者情報の取得
-    let performer = await Performer.findByPk(req.params.id);
-    
-    if (!performer) {
-      return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
-    }
-    
-    // 更新フィールドの構築
-    const updateFields = {};
-    if (lastName) updateFields.lastName = lastName;
-    if (firstName) updateFields.firstName = firstName;
-    if (lastNameRoman) updateFields.lastNameRoman = lastNameRoman;
-    if (firstNameRoman) updateFields.firstNameRoman = firstNameRoman;
-    if (status) updateFields.status = status;
-    if (notes !== undefined) updateFields.notes = notes;
-    
-    // 出演者情報を更新
-    await Performer.update(updateFields, {
-      where: { id: req.params.id }
-    });
-    
-    // 更新後の出演者情報を取得
-    performer = await Performer.findByPk(req.params.id);
-    
-    // 監査ログ記録
-    await AuditLog.create({
-      userId: req.user.id,
-      action: 'update',
-      resourceType: 'performer',
-      resourceId: performer.id,
-      details: updateFields,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent') || ''
-    });
-    
-    res.json(performer);
-  } catch (err) {
-    console.error('出演者更新エラー:', err.message, err.stack);
-    res.status(500).json({ 
-      message: '出演者情報の更新に失敗しました。', 
-      error: err.message 
-    });
-  }
-});
-
 // @route   GET api/performers/:id/documents
 // @desc    Get documents for a performer
 // @access  Private
@@ -465,36 +413,34 @@ router.get('/:id/documents', auth, async (req, res) => {
   }
 });
 
-// @route   GET api/performers/:id/documents/:type
-// @desc    Download a document
-// @access  Private
+// /:id/documents/:type エンドポイントを探して修正
 router.get('/:id/documents/:type', auth, async (req, res) => {
   try {
+    console.log('=== 直接ファイル送信方式: ファイル表示対応 ===');
+    console.log('リクエスト:', req.params.id, req.params.type);
+    
     const performer = await Performer.findByPk(req.params.id);
     
     if (!performer) {
-      return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
+      return res.status(404).json({ message: '出演者情報が見つかりません' });
     }
     
     const docType = req.params.type;
     const docData = performer.documents ? performer.documents[docType] : null;
     
-    if (!docData) {
-      return res.status(404).json({ message: '指定された書類が見つかりません。正しい書類タイプを指定してください。' });
+    if (!docData || !docData.path) {
+      return res.status(404).json({ message: '指定された書類が見つかりません' });
     }
     
-    // ファイルが存在するか確認
+    // ファイル存在チェック
     if (!fs.existsSync(docData.path)) {
-      return res.status(404).json({ message: 'ファイルが見つかりません。システム管理者にお問い合わせください。' });
+      return res.status(404).json({ message: 'ファイルが存在しません' });
     }
     
-    // ダウンロード用の名前を作成
-    const downloadName = `${docType}_${performer.lastName}_${performer.firstName}${path.extname(docData.originalName)}`;
-    
-    // 監査ログ記録
+    // 監査ログを記録
     await AuditLog.create({
       userId: req.user.id,
-      action: 'download',
+      action: req.query.download === 'true' ? 'download' : 'view',
       resourceType: 'document',
       resourceId: performer.id,
       details: { documentType: docType },
@@ -502,14 +448,24 @@ router.get('/:id/documents/:type', auth, async (req, res) => {
       userAgent: req.get('user-agent') || ''
     });
     
-    // ファイルを送信
-    res.download(docData.path, downloadName);
+    // ダウンロードモードかどうか確認
+    if (req.query.download === 'true') {
+      // ダウンロード用のファイル名を設定
+      const extension = path.extname(docData.path).substring(1) || 'pdf';
+      const filename = `${docType}_${performer.lastName}_${performer.firstName}.${extension}`;
+      return res.download(docData.path, filename);
+    }
+    
+    // 重要な変更: リダイレクトではなく、直接ファイルを送信
+    console.log('ファイルを直接送信:', docData.path);
+    res.setHeader('Content-Type', docData.mimeType || 'application/octet-stream');
+    res.sendFile(path.resolve(docData.path));
+    
   } catch (err) {
-    console.error('書類ダウンロードエラー:', err.message, err.stack);
-    res.status(500).json({ 
-      message: '書類のダウンロードに失敗しました。', 
-      error: err.message 
-    });
+    console.error('書類取得エラー:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'サーバーエラー', error: err.message });
+    }
   }
 });
 

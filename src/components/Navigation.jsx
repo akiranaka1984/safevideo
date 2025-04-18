@@ -17,7 +17,7 @@ const Navigation = () => {
       <div className="p-6">
         <div className="flex items-center">
           <Shield className="h-8 w-8 mr-2 text-green-400" />
-          <span className="text-xl font-bold">SafeVideo</span>
+          <span className="text-xl font-bold">SharegramVideo</span>
         </div>
         <p className="text-xs text-gray-400 mt-1">出演者情報管理システム</p>
       </div>
@@ -56,15 +56,20 @@ const Navigation = () => {
               <span>監査ログ</span>
             </Link>
             
-            <Link
-              to="/users"
-              className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
-                isActive('/users') ? 'bg-gray-700' : ''
-              }`}
-            >
-              <Users className="h-5 w-5 mr-3" />
-              <span>ユーザー管理</span>
-            </Link>
+            {/* ユーザー管理のリンクを非表示にする */}
+            {/* 
+            {isAdmin && (
+              <Link
+                to="/users"
+                className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
+                  isActive('/users') ? 'bg-gray-700' : ''
+                }`}
+              >
+                <Users className="h-5 w-5 mr-3" />
+                <span>ユーザー管理</span>
+              </Link>
+            )}
+            */}
             
             <Link
               to="/settings"

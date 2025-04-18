@@ -39,7 +39,7 @@ const LoginPage = () => {
                 </div>
               </div>
             </div>
-            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">SafeVideo<span className="text-blue-600">.org</span></h2>
+            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">SharegramVideo<span className="text-blue-600">.org</span></h2>
             <p className="mt-2 text-sm text-gray-600">
               A simple and easy solution for your record keeping service.
             </p>
@@ -125,7 +125,7 @@ const LoginPage = () => {
           </div>
           
           <div className="text-center text-xs text-gray-500 mt-4">
-            © 2025 SafeVideo.org All rights reserved.
+            © 2025 SharegramVideo All rights reserved.
           </div>
         </div>
       </div>
