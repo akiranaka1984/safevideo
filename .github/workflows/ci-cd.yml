@@ -1,5 +1,11 @@
 name: CI/CD Pipeline
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  packages: write
+
 on:
   push:
     branches: [main, master, develop]
@@ -33,7 +39,9 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        continue-on-error: true
         with:
           sarif_file: 'trivy-results.sarif'
 
@@ -223,7 +231,8 @@ jobs:
 
       - name: Upload Trivy scan results
         if: github.event_name != 'pull_request'
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
         with:
           sarif_file: 'trivy-image-results.sarif'
 
