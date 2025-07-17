@@ -44,44 +44,7 @@ const Navigation = () => {
         </Link>
         
         {/* 管理者専用メニュー */}
-        {isAdmin && (
-          <>
-            <Link
-              to="/audit-logs"
-              className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
-                isActive('/audit-logs') ? 'bg-gray-700' : ''
-              }`}
-            >
-              <Clock className="h-5 w-5 mr-3" />
-              <span>監査ログ</span>
-            </Link>
-            
-            {/* ユーザー管理のリンクを非表示にする */}
-            {/* 
-            {isAdmin && (
-              <Link
-                to="/users"
-                className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
-                  isActive('/users') ? 'bg-gray-700' : ''
-                }`}
-              >
-                <Users className="h-5 w-5 mr-3" />
-                <span>ユーザー管理</span>
-              </Link>
-            )}
-            */}
-            
-            <Link
-              to="/settings"
-              className={`flex items-center px-6 py-3 hover:bg-gray-700 ${
-                isActive('/settings') ? 'bg-gray-700' : ''
-              }`}
-            >
-              <Settings className="h-5 w-5 mr-3" />
-              <span>システム設定</span>
-            </Link>
-          </>
-        )}
+        {/* 監査ログとシステム設定を非表示 */}
       </nav>
     </aside>
   );

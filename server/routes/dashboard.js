@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const auth = require('../middleware/auth');
+const checkRole = require('../middleware/checkRole');
 const { Performer, AuditLog, User } = require('../models');
 
 // @route   GET api/dashboard/stats
 // @desc    Get dashboard statistics
-// @access  Private
-router.get('/stats', auth, async (req, res) => {
+// @access  Private (Admin Only)
+router.get('/stats', auth, checkRole(['admin']), async (req, res) => {
   try {
     // 登録出演者数
     const totalPerformers = await Performer.count();
@@ -132,8 +133,8 @@ router.get('/stats', auth, async (req, res) => {
 
 // @route   GET api/dashboard/activity
 // @desc    Get recent activity
-// @access  Private
-router.get('/activity', auth, async (req, res) => {
+// @access  Private (Admin Only)
+router.get('/activity', auth, checkRole(['admin']), async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     
@@ -190,8 +191,8 @@ router.get('/activity', auth, async (req, res) => {
 
 // @route   GET api/dashboard/chart
 // @desc    Get chart data
-// @access  Private
-router.get('/chart', auth, async (req, res) => {
+// @access  Private (Admin Only)
+router.get('/chart', auth, checkRole(['admin']), async (req, res) => {
   try {
     const type = req.query.type || 'monthly';
     const now = new Date();

@@ -45,4 +45,11 @@ const AuditLog = sequelize.define('AuditLog', {
   updatedAt: false
 });
 
+// Associations
+AuditLog.associate = function(models) {
+  AuditLog.belongsTo(models.User, { 
+    foreignKey: 'userId' 
+  });
+};
+
 module.exports = AuditLog;

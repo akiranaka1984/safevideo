@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createVideo } from '../services/videoService';
+import { trackEvent, trackPageView, trackError, ANALYTICS_EVENTS } from '../services/firebaseAnalytics';
 
 const AddVideoPage = () => {
   const [title, setTitle] = useState('');
@@ -11,10 +12,26 @@ const AddVideoPage = () => {
   
   const navigate = useNavigate();
   
+  // Track page view
+  useEffect(() => {
+    trackPageView('Add Video Page');
+    trackEvent('video_upload_start', {
+      timestamp: new Date().toISOString()
+    });
+  }, []);
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError('');
+    
+    // Track video submission attempt
+    trackEvent('video_submit_attempt', {
+      has_title: !!title,
+      has_url: !!url,
+      has_description: !!description,
+      url_domain: url ? new URL(url).hostname : 'unknown'
+    });
     
     try {
       const newVideo = await createVideo({
@@ -23,9 +40,23 @@ const AddVideoPage = () => {
         description
       });
       
+      // Track successful video creation
+      trackEvent('video_upload_success', {
+        videoId: newVideo._id,
+        title_length: title.length,
+        has_description: !!description,
+        url_domain: new URL(url).hostname
+      });
+      
       navigate(`/videos/${newVideo._id}`);
     } catch (err) {
-      setError(err.message || '動画の登録に失敗しました');
+      const errorMsg = err.message || '動画の登録に失敗しました';
+      setError(errorMsg);
+      
+      // Track video upload error
+      trackError('video_upload_error', errorMsg, err.stack, {
+        url_domain: url ? new URL(url).hostname : 'unknown'
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -104,7 +135,15 @@ const AddVideoPage = () => {
           <div className="flex justify-end space-x-3 pt-5">
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => {
+                // Track video upload cancellation
+                trackEvent('video_upload_cancelled', {
+                  had_title: !!title,
+                  had_url: !!url,
+                  had_description: !!description
+                });
+                navigate('/');
+              }}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
             >
               キャンセル

@@ -46,9 +46,17 @@ export const AuthProvider = ({ children }) => {
     checkAuthentication();
   }, []);
 
-  const loginUser = async (email, password) => {
+  const loginUser = async (email, password, token = null) => {
     try {
-      const userData = await login(email, password);
+      let userData;
+      if (token) {
+        // SSO経由のログイン（トークンが直接提供される）
+        localStorage.setItem('token', token);
+        userData = await checkAuth();
+      } else {
+        // 通常のメール/パスワードログイン
+        userData = await login(email, password);
+      }
       setUser(userData);
       setIsAuthenticated(true);
       return userData;

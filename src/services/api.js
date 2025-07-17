@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Docker環境での正しいURLを指定
-const API_URL = 'http://167.172.92.88:5001/api';
+// 環境変数からAPIのURLを取得（デフォルトはローカル環境）
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,

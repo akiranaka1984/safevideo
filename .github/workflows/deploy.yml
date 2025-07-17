@@ -276,7 +276,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production
-      url: https://safevideo.com
+      url: http://167.172.92.88/
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -298,7 +298,7 @@ jobs:
       - name: Health check
         run: |
           sleep 30
-          curl -f https://safevideo.com/health || exit 1
+          curl -f http://167.172.92.88/health || exit 1
 
       - name: Notify deployment
         if: always()

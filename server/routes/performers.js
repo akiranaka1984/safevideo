@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
+const checkRole = require('../middleware/checkRole');
 const { Performer, AuditLog } = require('../models');
 const { Op } = require('sequelize');
 
@@ -122,6 +123,11 @@ router.get('/', auth, async (req, res) => {
       order = [['lastName', 'ASC'], ['firstName', 'ASC']]; // 名前の昇順
     }
     
+    // ユーザーロールの場合は自分が登録したデータのみ取得
+    if (req.user.role === 'user') {
+      whereClause.userId = req.user.id;
+    }
+
     const performers = await Performer.findAll({
       where: whereClause,
       order,
@@ -160,6 +166,11 @@ router.get('/:id', auth, async (req, res) => {
     
     if (!performer) {
       return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
+    }
+    
+    // ユーザーロールの場合、自分が登録したデータのみアクセス可能
+    if (req.user.role === 'user' && performer.userId !== req.user.id) {
+      return res.status(403).json({ message: 'このデータへのアクセス権限がありません。' });
     }
     
     // 監査ログ記録
@@ -328,6 +339,11 @@ router.get('/:id/documents', auth, async (req, res) => {
       return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
     }
     
+    // ユーザーロールの場合、自分が登録したデータのみアクセス可能
+    if (req.user.role === 'user' && performer.userId !== req.user.id) {
+      return res.status(403).json({ message: 'このデータへのアクセス権限がありません。' });
+    }
+    
     // documents JSONから書類情報の配列を作成
     const documents = [];
     const docData = performer.documents || {};
@@ -425,6 +441,11 @@ router.get('/:id/documents/:type', auth, async (req, res) => {
       return res.status(404).json({ message: '出演者情報が見つかりません' });
     }
     
+    // ユーザーロールの場合、自分が登録したデータのみアクセス可能
+    if (req.user.role === 'user' && performer.userId !== req.user.id) {
+      return res.status(403).json({ message: 'このデータへのアクセス権限がありません。' });
+    }
+    
     const docType = req.params.type;
     const docData = performer.documents ? performer.documents[docType] : null;
     
@@ -474,6 +495,11 @@ router.get('/:id/documents/:type', auth, async (req, res) => {
 // @access  Private
 router.put('/:id/documents/:type/verify', auth, async (req, res) => {
   try {
+    // 管理者のみ検証可能
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: '書類の検証は管理者のみが実行できます。' });
+    }
+    
     const performer = await Performer.findByPk(req.params.id);
     
     if (!performer) {
@@ -535,6 +561,252 @@ router.put('/:id/documents/:type/verify', auth, async (req, res) => {
   }
 });
 
+// @route   POST api/performers/sync
+// @desc    Sync performers from external system
+// @access  Private (Admin only)
+router.post('/sync', auth, async (req, res) => {
+  try {
+    // 管理者のみ同期実行可能
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: '同期処理は管理者のみが実行できます。' });
+    }
+
+    const { performers } = req.body;
+    
+    if (!performers || !Array.isArray(performers)) {
+      return res.status(400).json({ message: '同期データが不正です。performers配列を送信してください。' });
+    }
+
+    // 同期結果の初期化
+    const results = {
+      total: performers.length,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: []
+    };
+
+    // 100件ずつバッチ処理
+    const batchSize = 100;
+    for (let i = 0; i < performers.length; i += batchSize) {
+      const batch = performers.slice(i, i + batchSize);
+      
+      // バッチ処理
+      await Promise.all(batch.map(async (performerData) => {
+        try {
+          // external_idの検証
+          if (!performerData.external_id) {
+            results.errors.push({
+              external_id: null,
+              error: 'external_idが必須です'
+            });
+            results.skipped++;
+            return;
+          }
+
+          // external_idで既存レコードを検索
+          let performer = await Performer.findOne({
+            where: { external_id: performerData.external_id }
+          });
+
+          if (performer) {
+            // 既存レコードの更新
+            await performer.update({
+              lastName: performerData.lastName || performer.lastName,
+              firstName: performerData.firstName || performer.firstName,
+              lastNameRoman: performerData.lastNameRoman || performer.lastNameRoman,
+              firstNameRoman: performerData.firstNameRoman || performer.firstNameRoman,
+              status: performerData.status || performer.status,
+              // documentsは既存のものとマージ
+              documents: {
+                ...performer.documents,
+                ...(performerData.documents || {})
+              }
+            });
+            results.updated++;
+          } else {
+            // 新規作成
+            performer = await Performer.create({
+              external_id: performerData.external_id,
+              userId: req.user.id, // 同期実行者をuserIdとして設定
+              lastName: performerData.lastName,
+              firstName: performerData.firstName,
+              lastNameRoman: performerData.lastNameRoman,
+              firstNameRoman: performerData.firstNameRoman,
+              status: performerData.status || 'pending',
+              documents: performerData.documents || {}
+            });
+            results.created++;
+          }
+        } catch (error) {
+          results.errors.push({
+            external_id: performerData.external_id,
+            error: error.message
+          });
+          results.skipped++;
+        }
+      }));
+    }
+
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'sync',
+      resourceType: 'performer',
+      resourceId: 0,
+      details: {
+        results,
+        source: 'external_system'
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
+    });
+
+    res.json({
+      message: '同期処理が完了しました',
+      results
+    });
+  } catch (err) {
+    console.error('同期処理エラー:', err.message, err.stack);
+    res.status(500).json({ 
+      message: '同期処理に失敗しました。', 
+      error: err.message 
+    });
+  }
+});
+
+// @route   POST api/performers/:id/approve
+// @desc    Approve a performer registration
+// @access  Private (Admin only)
+router.post('/:id/approve', [auth, checkRole(['admin'])], async (req, res) => {
+  try {
+    const performer = await Performer.findByPk(req.params.id);
+    
+    if (!performer) {
+      return res.status(404).json({ message: '出演者情報が見つかりません' });
+    }
+    
+    // ステータスを承認済みに更新
+    performer.status = 'active';
+    await performer.save();
+    
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'approve',
+      resourceType: 'performer',
+      resourceId: performer.id,
+      details: {
+        previousStatus: performer.status,
+        newStatus: 'active',
+        performerName: `${performer.lastName} ${performer.firstName}`
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
+    });
+    
+    // Webhook通知をトリガー（別途実装）
+    const { triggerWebhook } = require('../services/webhookService');
+    await triggerWebhook('performer.approved', {
+      performerId: performer.id,
+      externalId: performer.external_id,
+      name: `${performer.lastName} ${performer.firstName}`,
+      approvedAt: new Date(),
+      approvedBy: req.user.id
+    });
+    
+    res.json({
+      message: '出演者が承認されました',
+      performer: performer
+    });
+  } catch (err) {
+    console.error('出演者承認エラー:', err);
+    res.status(500).json({ 
+      message: '出演者の承認に失敗しました', 
+      error: err.message 
+    });
+  }
+});
+
+// @route   POST api/performers/:id/registration-complete
+// @desc    Mark performer registration as complete
+// @access  Private
+router.post('/:id/registration-complete', auth, async (req, res) => {
+  try {
+    const performer = await Performer.findByPk(req.params.id);
+    
+    if (!performer) {
+      return res.status(404).json({ message: '出演者情報が見つかりません' });
+    }
+    
+    // ユーザーロールの場合、自分が登録したデータのみアクセス可能
+    if (req.user.role === 'user' && performer.userId !== req.user.id) {
+      return res.status(403).json({ message: 'このデータへのアクセス権限がありません' });
+    }
+    
+    // 必須ドキュメントの確認
+    const documents = performer.documents || {};
+    const requiredDocs = ['agreementFile', 'idFront', 'selfie'];
+    const missingDocs = requiredDocs.filter(doc => !documents[doc]);
+    
+    if (missingDocs.length > 0) {
+      return res.status(400).json({ 
+        message: '必須書類が不足しています',
+        missingDocuments: missingDocs 
+      });
+    }
+    
+    // KYCステータスを更新
+    if (performer.kycStatus === 'not_started') {
+      performer.kycStatus = 'in_progress';
+    }
+    
+    // メタデータに登録完了時刻を記録
+    performer.kycMetadata = {
+      ...performer.kycMetadata,
+      registrationCompletedAt: new Date(),
+      registrationCompletedBy: req.user.id
+    };
+    
+    await performer.save();
+    
+    // 監査ログ記録
+    await AuditLog.create({
+      userId: req.user.id,
+      action: 'complete_registration',
+      resourceType: 'performer',
+      resourceId: performer.id,
+      details: {
+        performerName: `${performer.lastName} ${performer.firstName}`,
+        kycStatus: performer.kycStatus
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || ''
+    });
+    
+    // Webhook通知をトリガー
+    const { triggerWebhook } = require('../services/webhookService');
+    await triggerWebhook('performer.registration_completed', {
+      performerId: performer.id,
+      externalId: performer.external_id,
+      name: `${performer.lastName} ${performer.firstName}`,
+      completedAt: new Date(),
+      userId: req.user.id
+    });
+    
+    res.json({
+      message: '登録が完了しました',
+      performer: performer
+    });
+  } catch (err) {
+    console.error('登録完了エラー:', err);
+    res.status(500).json({ 
+      message: '登録完了処理に失敗しました', 
+      error: err.message 
+    });
+  }
+});
+
 // @route   DELETE api/performers/:id
 // @desc    Delete a performer
 // @access  Private
@@ -544,6 +816,11 @@ router.delete('/:id', auth, async (req, res) => {
     
     if (!performer) {
       return res.status(404).json({ message: '出演者情報が見つかりません。正しいIDで再度お試しください。' });
+    }
+    
+    // ユーザーロールの場合、自分が登録したデータのみ削除可能
+    if (req.user.role === 'user' && performer.userId !== req.user.id) {
+      return res.status(403).json({ message: 'このデータを削除する権限がありません。' });
     }
     
     // 関連するファイルを削除

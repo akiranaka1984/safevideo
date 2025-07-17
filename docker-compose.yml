@@ -7,8 +7,10 @@ services:
       - "80:3000"
     volumes:
       - ./uploads:/app/uploads
+      - ./src:/app/src
+      - ./public:/app/public
     environment:
-      - REACT_APP_API_URL=http://167.172.92.88:5001/api
+      - REACT_APP_API_URL=http://localhost:5002/api
       - NODE_ENV=development
     restart: always
     depends_on:
@@ -19,7 +21,7 @@ services:
       context: ./server
       dockerfile: Dockerfile.server
     ports:
-      - "5001:5000"
+      - "5002:5000"
     volumes:
       - ./uploads:/app/uploads
     environment:
@@ -38,7 +40,7 @@ services:
   mysql:
     image: mysql:8.0
     ports:
-      - "3306:3306"
+      - "3307:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=root_strong_password
       - MYSQL_DATABASE=safevideo
@@ -49,7 +51,7 @@ services:
     restart: always
     
   phpmyadmin:
-    image: phpmyadmin/phpmyadmin
+    image: phpmyadmin:latest
     container_name: phpmyadmin
     restart: always
     environment:

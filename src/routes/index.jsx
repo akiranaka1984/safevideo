@@ -2,8 +2,11 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import MainLayout from '../layouts/MainLayout';
+import AnalyticsProvider from '../components/AnalyticsProvider';
 
 import LoginPage from '../pages/LoginPage';
+import FirebaseLoginPage from '../pages/FirebaseLoginPage';
+import SSOCallbackPage from '../pages/SSOCallbackPage';
 import DashboardPage from '../pages/DashboardPage';
 import PerformersPage from '../pages/PerformersPage';
 import PerformerDetailPage from '../pages/PerformerDetailPage';
@@ -15,6 +18,7 @@ import ContactPage from '../pages/ContactPage';
 import TermsPage from '../pages/TermsPage';
 import PrivacyPage from '../pages/PrivacyPage';
 import CustomVideoDetailPage from '../pages/CustomVideoDetailPage';
+import SharegramGateway from '../components/sharegram/SharegramGateway';
 
 // 認証済みユーザーのみがアクセスできるルート
 const ProtectedRoute = ({ children }) => {
@@ -31,8 +35,14 @@ const AppRoutes = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
+        <AnalyticsProvider>
+          <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/firebase-login" element={<FirebaseLoginPage />} />
+          <Route path="/sso-callback" element={<SSOCallbackPage />} />
+          
+          {/* Sharegram KYC登録ルート（認証不要） */}
+          <Route path="/kyc/register" element={<SharegramGateway />} />
           
           <Route element={<MainLayout />}>
             {/* 認証が必要なルート */}
@@ -52,6 +62,11 @@ const AppRoutes = () => {
               </ProtectedRoute>
             } />
             <Route path="/performers/add" element={
+              <ProtectedRoute>
+                <AddPerformerPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/add-performer" element={
               <ProtectedRoute>
                 <AddPerformerPage />
               </ProtectedRoute>
@@ -78,6 +93,7 @@ const AppRoutes = () => {
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </AnalyticsProvider>
       </AuthProvider>
     </BrowserRouter>
   );

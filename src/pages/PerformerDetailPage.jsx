@@ -16,6 +16,30 @@ const PerformerDetailPage = () => {
  const [verifyingDoc, setVerifyingDoc] = useState(null);
  // 追加: ポップアップ表示のための状態
  const [previewDoc, setPreviewDoc] = useState(null);
+ const [imageUrl, setImageUrl] = useState(null);
+
+ // 画像をBlobとして取得してURLを作成
+ const fetchImageAsBlob = async (documentType) => {
+   try {
+     const token = localStorage.getItem('token');
+     const response = await fetch(
+       `${process.env.REACT_APP_API_URL || 'http://167.172.92.88:5000'}/api/performers/${id}/documents/${documentType}`,
+       {
+         headers: {
+           'Authorization': `Bearer ${token}`
+         }
+       }
+     );
+     
+     if (response.ok) {
+       const blob = await response.blob();
+       const url = URL.createObjectURL(blob);
+       setImageUrl(url);
+     }
+   } catch (error) {
+     console.error('画像の取得に失敗しました:', error);
+   }
+ };
 
  useEffect(() => {
    // ユーザーロールを取得
@@ -101,13 +125,20 @@ const PerformerDetailPage = () => {
  };
 
  // 追加: プレビュー表示用の関数
- const handlePreview = (doc) => {
+ const handlePreview = async (doc) => {
    setPreviewDoc(doc);
+   if (doc.mimeType && doc.mimeType.includes('image')) {
+     await fetchImageAsBlob(doc.type);
+   }
  };
 
  // 追加: プレビューを閉じる関数
  const closePreview = () => {
    setPreviewDoc(null);
+   if (imageUrl) {
+     URL.revokeObjectURL(imageUrl);
+     setImageUrl(null);
+   }
  };
 
  if (loading) {
@@ -145,12 +176,16 @@ const PerformerDetailPage = () => {
                <span>{performer.lastNameRoman} {performer.firstNameRoman}</span>
                <span className="mx-2">•</span>
                <span>ID: {performer.id}</span>
-               <span className="mx-2">•</span>
-               <span>ステータス: {
-                 performer.status === 'active' ? '承認済み' :
-                 performer.status === 'pending' ? '検証待ち' :
-                 performer.status === 'rejected' ? '拒否' : performer.status
-               }</span>
+               {userRole === 'admin' && (
+                 <>
+                   <span className="mx-2">•</span>
+                   <span>ステータス: {
+                     performer.status === 'active' ? '承認済み' :
+                     performer.status === 'pending' ? '検証待ち' :
+                     performer.status === 'rejected' ? '拒否' : performer.status
+                   }</span>
+                 </>
+               )}
              </div>
            </div>
            <div className="mt-4 flex md:mt-0 md:ml-4">
@@ -242,12 +277,12 @@ const PerformerDetailPage = () => {
                              <CheckCircle className="h-5 w-5 text-green-500" />
                              <span className="ml-1 text-xs text-green-500">検証済み</span>
                            </div>
-                         ) : (
+                         ) : userRole === 'admin' ? (
                            <div className="flex items-center">
                              <AlertCircle className="h-5 w-5 text-yellow-500" />
                              <span className="ml-1 text-xs text-yellow-500">未検証</span>
                            </div>
-                         )}
+                         ) : null}
                          
                          {/* 管理者のみ検証ボタンを表示 */}
                          {userRole === 'admin' && !doc.verified && (
@@ -362,17 +397,49 @@ const PerformerDetailPage = () => {
           </button>
         </div>
         <div className="bg-white p-6 flex flex-col items-center justify-center text-center">
-          <FileText className="h-16 w-16 text-gray-300 mb-4" />
-          <p className="mb-4 text-gray-600">
-            サーバー側の設定により、プレビュー表示ができません。<br />
-            ファイルをダウンロードして確認してください。
-          </p>
-          <button
-            onClick={() => handleDownload(previewDoc.type)}
-            className="w-full max-w-md px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-          >
-            ダウンロード
-          </button>
+          {previewDoc.mimeType && previewDoc.mimeType.includes('image') ? (
+            <div className="w-full">
+              {imageUrl ? (
+                <img 
+                  src={imageUrl}
+                  alt={previewDoc.name}
+                  className="max-w-full max-h-[70vh] object-contain mx-auto"
+                />
+              ) : (
+                <div className="flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mb-4"></div>
+                  <p className="text-gray-600">画像を読み込んでいます...</p>
+                </div>
+              )}
+            </div>
+          ) : previewDoc.mimeType === 'application/pdf' ? (
+            <div className="w-full">
+              <FileText className="h-16 w-16 text-gray-300 mb-4 mx-auto" />
+              <p className="mb-4 text-gray-600">
+                PDFファイルのプレビューは現在サポートされていません。<br />
+                ファイルをダウンロードして確認してください。
+              </p>
+              <button
+                onClick={() => handleDownload(previewDoc.type)}
+                className="w-full max-w-md px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+              >
+                ダウンロード
+              </button>
+            </div>
+          ) : (
+            <div>
+              <FileText className="h-16 w-16 text-gray-300 mb-4" />
+              <p className="mb-4 text-gray-600">
+                ファイルをダウンロードして確認してください。
+              </p>
+              <button
+                onClick={() => handleDownload(previewDoc.type)}
+                className="w-full max-w-md px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+              >
+                ダウンロード
+              </button>
+            </div>
+          )}
         </div>
         <div className="bg-gray-50 px-4 py-3 flex justify-end">
           <button

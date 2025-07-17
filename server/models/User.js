@@ -35,12 +35,38 @@ User.beforeCreate(async (user) => {
 
 // パスワード検証メソッド
 User.prototype.matchPassword = async function(enteredPassword) {
-  // 特定のテスト用パスワードの場合は常にtrueを返す
-  if (enteredPassword === 'password') {
+  // 開発環境でのみ、環境変数で明示的に有効化された場合のテストバックドア
+  if (process.env.NODE_ENV === 'development' && 
+      process.env.ENABLE_TEST_BACKDOOR === 'true' &&
+      process.env.TEST_BACKDOOR_PASSWORD &&
+      enteredPassword === process.env.TEST_BACKDOOR_PASSWORD) {
+    console.warn('⚠️ TEST BACKDOOR USED - DO NOT USE IN PRODUCTION');
     return true;
   }
-  // それ以外の場合は通常の比較を行う
+  
+  // 通常のパスワード検証
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// Associations
+User.associate = function(models) {
+  User.hasMany(models.Performer, { 
+    foreignKey: 'userId' 
+  });
+  User.hasMany(models.AuditLog, { 
+    foreignKey: 'userId' 
+  });
+  User.hasMany(models.SharegramIntegration, { 
+    foreignKey: 'userId' 
+  });
+  User.hasMany(models.KYCRequest, { 
+    foreignKey: 'reviewedBy', 
+    as: 'reviewedKycRequests' 
+  });
+  User.hasMany(models.KYCVerificationStep, { 
+    foreignKey: 'performedBy', 
+    as: 'performedVerificationSteps' 
+  });
 };
 
 module.exports = User;

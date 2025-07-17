@@ -3,12 +3,25 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const xlsx = require('xlsx');
 const auth = require('../middleware/auth');
+const checkRole = require('../middleware/checkRole');
 const { AuditLog, User } = require('../models');
 
 // @route   GET api/audit-logs
 // @desc    Get all audit logs with filtering
-// @access  Private
+// @access  Private (Admin Only)
 router.get('/', auth, async (req, res) => {
+  // 🚨 MANAGER EMERGENCY FIX: 即座に権限チェック
+  if (!req.user || req.user.role !== 'admin') {
+    console.log('🚨 SECURITY BLOCK: Non-admin access attempt', {
+      userId: req.user?.id,
+      userRole: req.user?.role,
+      path: req.path
+    });
+    return res.status(403).json({ 
+      message: '権限がありません。管理者のみアクセス可能です。',
+      code: 'ADMIN_ONLY'
+    });
+  }
   try {
     const {
       startDate,
@@ -51,12 +64,9 @@ router.get('/', auth, async (req, res) => {
       whereClause.resourceId = resourceId;
     }
     
-    // ユーザーIDフィルター（管理者のみ他のユーザーのログを見ることができる）
-    if (userId && req.user.role === 'admin') {
+    // ユーザーIDフィルター（管理者のみアクセス可能）
+    if (userId) {
       whereClause.userId = userId;
-    } else {
-      // 管理者でない場合は自分のログのみ表示
-      whereClause.userId = req.user.id;
     }
     
     const logs = await AuditLog.findAll({
@@ -108,71 +118,10 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// @route   GET api/audit-logs/:resourceType/:resourceId
-// @desc    Get audit logs for a specific resource
-// @access  Private
-router.get('/:resourceType/:resourceId', auth, async (req, res) => {
-  try {
-    const logs = await AuditLog.findAll({
-      where: {
-        resourceType: req.params.resourceType,
-        resourceId: req.params.resourceId
-      },
-      include: [{
-        model: User,
-        attributes: ['id', 'name', 'email']
-      }],
-      order: [['createdAt', 'DESC']]
-    });
-    
-    // 日本語化と整形
-    const formattedLogs = logs.map(log => {
-      const logData = log.toJSON();
-      
-      // アクションの日本語化
-      let actionLabel = '';
-      switch(log.action) {
-        case 'create': actionLabel = '作成'; break;
-        case 'read': actionLabel = '閲覧'; break;
-        case 'update': actionLabel = '更新'; break;
-        case 'delete': actionLabel = '削除'; break;
-        case 'verify': actionLabel = '検証'; break;
-        case 'download': actionLabel = 'ダウンロード'; break;
-        default: actionLabel = log.action;
-      }
-      
-      // リソースタイプの日本語化
-      let resourceTypeLabel = '';
-      switch(log.resourceType) {
-        case 'performer': resourceTypeLabel = '出演者'; break;
-        case 'document': resourceTypeLabel = '書類'; break;
-        default: resourceTypeLabel = log.resourceType;
-      }
-      
-      return {
-        ...logData,
-        actionLabel,
-        resourceTypeLabel,
-        formattedDate: new Date(log.createdAt).toLocaleString('ja-JP')
-      };
-    });
-    
-    res.json(formattedLogs);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('サーバーエラーが発生しました');
-  }
-});
-
 // @route   GET api/audit-logs/export
 // @desc    Export audit logs as Excel file
 // @access  Private (Admin only)
-router.get('/export', auth, async (req, res) => {
-  // 管理者権限チェック
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: '権限がありません。この操作にはシステム管理者権限が必要です。' });
-  }
-  
+router.get('/export', auth, checkRole(['admin']), async (req, res) => {
   try {
     const {
       startDate,
@@ -277,6 +226,74 @@ router.get('/export', auth, async (req, res) => {
     
     // レスポンスを送信
     res.send(excelBuffer);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('サーバーエラーが発生しました');
+  }
+});
+
+// @route   GET api/audit-logs/:resourceType/:resourceId
+// @desc    Get audit logs for a specific resource
+// @access  Private (Admin Only)
+router.get('/:resourceType/:resourceId', auth, async (req, res) => {
+  // 🚨 MANAGER EMERGENCY FIX: 即座に権限チェック
+  if (!req.user || req.user.role !== 'admin') {
+    console.log('🚨 SECURITY BLOCK: Non-admin access attempt', {
+      userId: req.user?.id,
+      userRole: req.user?.role,
+      path: req.path
+    });
+    return res.status(403).json({ 
+      message: '権限がありません。管理者のみアクセス可能です。',
+      code: 'ADMIN_ONLY'
+    });
+  }
+  try {
+    const logs = await AuditLog.findAll({
+      where: {
+        resourceType: req.params.resourceType,
+        resourceId: req.params.resourceId
+      },
+      include: [{
+        model: User,
+        attributes: ['id', 'name', 'email']
+      }],
+      order: [['createdAt', 'DESC']]
+    });
+    
+    // 日本語化と整形
+    const formattedLogs = logs.map(log => {
+      const logData = log.toJSON();
+      
+      // アクションの日本語化
+      let actionLabel = '';
+      switch(log.action) {
+        case 'create': actionLabel = '作成'; break;
+        case 'read': actionLabel = '閲覧'; break;
+        case 'update': actionLabel = '更新'; break;
+        case 'delete': actionLabel = '削除'; break;
+        case 'verify': actionLabel = '検証'; break;
+        case 'download': actionLabel = 'ダウンロード'; break;
+        default: actionLabel = log.action;
+      }
+      
+      // リソースタイプの日本語化
+      let resourceTypeLabel = '';
+      switch(log.resourceType) {
+        case 'performer': resourceTypeLabel = '出演者'; break;
+        case 'document': resourceTypeLabel = '書類'; break;
+        default: resourceTypeLabel = log.resourceType;
+      }
+      
+      return {
+        ...logData,
+        actionLabel,
+        resourceTypeLabel,
+        formattedDate: new Date(log.createdAt).toLocaleString('ja-JP')
+      };
+    });
+    
+    res.json(formattedLogs);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('サーバーエラーが発生しました');
