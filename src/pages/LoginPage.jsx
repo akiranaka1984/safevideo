@@ -10,7 +10,7 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { login, waitForAuthState } = useAuth();
   const navigate = useNavigate();
   
   // Track page view on component mount
@@ -31,9 +31,26 @@ const LoginPage = () => {
     
     try {
       const user = await login(email, password);
+      
       // Track successful login
       trackUserLogin(user?.uid || email, 'email_password', true);
-      navigate('/');
+      
+      // 認証状態が完全に反映されるのを待つ（改善版）
+      if (waitForAuthState) {
+        console.log('認証状態の確定を待機中...');
+        const { isAuthenticated } = await waitForAuthState();
+        
+        if (isAuthenticated) {
+          console.log('認証成功、ダッシュボードへ遷移');
+          navigate('/', { replace: true });
+        } else {
+          throw new Error('認証状態の確定に失敗しました');
+        }
+      } else {
+        // waitForAuthStateが利用できない場合は従来の方法
+        await new Promise(resolve => setTimeout(resolve, 200));
+        navigate('/', { replace: true });
+      }
     } catch (err) {
       const errorMessage = err.message || 'ログインに失敗しました';
       setError(errorMessage);

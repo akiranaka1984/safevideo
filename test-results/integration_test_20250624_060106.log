@@ -1,4 +1,0 @@
-2025-06-24 06:01:06 - [0;32mStarting SafeVideo Integration Test Suite...[0m
-2025-06-24 06:01:06 - [0;34mChecking Docker services...[0m
-2025-06-24 06:01:06 - [1;33mRunning test: Docker Swarm Active[0m
-2025-06-24 06:01:06 - [0;31m✗ FAIL: Docker Swarm Active[0m
